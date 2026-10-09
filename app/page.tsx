@@ -107,9 +107,6 @@ function AccountBudget({ user }: { user: User }) {
   const [initial, setInitial] = useState<SavedData | null>(null);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
-  const [importing, setImporting] = useState(false);
-  const [hasBudget, setHasBudget] = useState(false);
-  const [generation, setGeneration] = useState(0);
   const revision = useRef<number | null>(null);
   const lock = useRef(false);
 
@@ -123,7 +120,6 @@ function AccountBudget({ user }: { user: User }) {
         if (result.data && !validate(result.data.data)) throw new Error("Your saved budget could not be read. It has not been overwritten.");
         revision.current = result.data?.revision ?? null;
         setInitial(result.data?.data ?? null);
-        setHasBudget(!!result.data);
         setError(""); setLoaded(true);
       } catch (cause) {
         if (active) setError(cause instanceof Error ? cause.message : "Could not load your budget. Check your connection and make sure database setup is complete.");
@@ -152,30 +148,12 @@ function AccountBudget({ user }: { user: User }) {
       }
       if (!result.data) throw new Error("Your budget changed in another tab or device. Refresh to load it, then repeat your change.");
       revision.current = result.data.revision;
-      setHasBudget(true);
     } finally { lock.current = false; }
-  }
-
-  async function importBudget() {
-    if (hasBudget || importing) return;
-    setImporting(true); setError("");
-    try {
-      const raw = localStorage.getItem("rupee-trace-history-v2");
-      const legacy = localStorage.getItem("rupee-trace-budget-v1");
-      if (!raw && !legacy) throw new Error("There is no browser budget to import on this device.");
-      const data: SavedData = raw ? JSON.parse(raw) : { version: 2, current: JSON.parse(legacy!), archives: [] };
-      if (!validate(data)) throw new Error("The browser budget could not be read. The original has been kept.");
-      const imported: SavedData = { ...data, current: { ...data.current, activities: [{ id: crypto.randomUUID(), date: new Date().toISOString(), description: "Browser budget imported into this account." }, ...(data.current.activities ?? [])] } };
-      await persist(imported);
-      setInitial(imported); setGeneration(n => n + 1);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Import failed. Your original browser data is unchanged."); }
-    finally { setImporting(false); }
   }
 
   if (!loaded) return <main className="mx-auto max-w-xl p-8">{error ? <><p role="alert" className="mb-4 text-red-700">{error}</p><button className="secondary" onClick={() => { setError(""); setRetry(n => n + 1); }}>Retry loading</button></> : <p>Loading your budget…</p>}</main>;
   return <>
     {error && <p role="alert" className="mx-auto max-w-6xl p-5 text-red-700">{error}</p>}
-    {!hasBudget && <div className="mx-auto max-w-6xl px-5 pt-5"><div className="panel p-5"><p className="text-sm">Used Rupee Trace on this browser before? Import its budget into <strong>{user.email}</strong>. Only import if the data is yours. The browser copy will be kept.</p><button disabled={importing} className="secondary mt-3" onClick={importBudget}>{importing ? "Importing…" : "Import browser budget"}</button><p className="mt-2 text-xs text-stone-500">Or create a fresh budget below.</p></div></div>}
-    <fieldset disabled={importing} className="min-w-0"><BudgetDashboard key={generation} initial={initial} persist={persist} /></fieldset>
+    <BudgetDashboard initial={initial} persist={persist} />
   </>;
 }
