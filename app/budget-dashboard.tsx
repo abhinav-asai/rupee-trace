@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 const CATEGORIES = ["Home & bills", "Groceries", "Dining", "Travel", "Personal", "Savings"];
 const SYMBOLS = ["⌂", "◈", "☕", "↗", "♡", "◎"];
@@ -33,16 +33,21 @@ export default function BudgetDashboard({ initial, persist }: { initial: SavedDa
   const [archives, setArchives] = useState<Budget[]>(initial?.archives ?? []);
   const [selected, setSelected] = useState(-1);
   const [guideStep, setGuideStep] = useState<number | null>(initial ? null : 0);
-  const guideHeading = useRef<HTMLHeadingElement>(null);
-  function showGuide(step: number) {
-    setGuideStep(step);
-    requestAnimationFrame(() => { guideHeading.current?.focus(); guideHeading.current?.scrollIntoView({ block: "center", behavior: "smooth" }); });
+  const [tourCategory, setTourCategory] = useState("");
+  useEffect(() => {
+    if (guideStep === null) return;
+    const note = document.querySelector<HTMLElement>("[data-tour-note]");
+    note?.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+  }, [guideStep]);
+  function tourNote(step: number, title: string, text: string, next?: string) {
+    if (guideStep !== step) return null;
+    return <aside data-tour-note role="status" className="relative my-4 rounded-[1.5rem_0.6rem_1.3rem_0.5rem] border-2 border-dashed border-amber-600 bg-amber-50 p-4 text-stone-900 shadow-sm">
+      <div className="flex items-center justify-between gap-3"><span className="text-xs font-semibold text-amber-900">YOUR FIRST PLAN · {step + 1} / 6</span><button type="button" className="text-xs underline" onClick={() => setGuideStep(null)}>Skip tour</button></div>
+      <p className="mt-2 text-lg font-semibold italic">{title}</p><p className="mt-1 text-sm leading-relaxed">{text}</p>
+      {next && <button type="button" className="secondary mt-3" onClick={() => setGuideStep(step === 5 ? null : step + 1)}>{next}</button>}
+      <svg aria-hidden="true" className="mt-2 h-10 w-16 text-amber-800" viewBox="0 0 64 40" fill="none"><path d="M8 3C42 0 47 15 35 34M24 25L35 35L46 26" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+    </aside>;
   }
-  const guideSteps = [
-    { title: "Start with your income", text: "Choose Monthly or Salary cycle, set its start date, and enter the money available for this cycle. For example, a ₹50,000 salary gives you ₹50,000 to plan with." },
-    { title: "Give every rupee a purpose", text: "Allocate money to categories such as groceries, travel, or savings. Add your own categories and subcategories before saving. A ₹2,000 Petrol subcategory comes from your Travel budget; it is not extra money. You can leave some income unallocated." },
-    { title: "Track spending as it happens", text: "Save your budget, then select Add Expense, enter an amount, and choose its category. Spending ₹600 from a ₹5,000 Dining budget leaves ₹4,400. Overspending is clearly marked, and you can edit or delete an expense to correct it." },
-  ];
   const [newCycle, setNewCycle] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [expenseAmount, setExpenseAmount] = useState("");
@@ -158,7 +163,7 @@ export default function BudgetDashboard({ initial, persist }: { initial: SavedDa
     });
     const next = withActivity({ ...(creating ? { id: crypto.randomUUID(), expenses: [] } : current), categories: [...categories], subcategories: updatedSubs, income, allocations, cycle, start }, changes);
     const nextArchives = newCycle && current ? [withActivity(current, [`Cycle archived when the next cycle started on ${start}.`]), ...archives] : archives;
-    if (await save(next, nextArchives)) { setEditing(false); setNewCycle(false); setNotice(creating ? "New cycle saved. Previous cycles remain available below." : "Budget saved. Changes are recorded in your activity history."); }
+    if (await save(next, nextArchives)) { if (guideStep !== null) setGuideStep(3); setEditing(false); setNewCycle(false); setNotice(creating ? "New cycle saved. Previous cycles remain available below." : "Budget saved. Changes are recorded in your activity history."); }
   }
 
   function openExpense(expense: Expense | null = null) {
@@ -169,6 +174,7 @@ export default function BudgetDashboard({ initial, persist }: { initial: SavedDa
     setFieldErrors({});
     setExpenseError("");
     dialog.current?.showModal();
+    if (guideStep === 3 && !expense) setGuideStep(4);
   }
 
   async function addExpense(event: FormEvent<HTMLFormElement>) {
@@ -186,6 +192,7 @@ export default function BudgetDashboard({ initial, persist }: { initial: SavedDa
     if (await save(withActivity({ ...current, expenses }, [description]))) {
       dialog.current?.close();
       setNotice("Expense saved. Balances and activity history are updated.");
+      if (guideStep === 4) { setTourCategory(category); setGuideStep(5); }
     }
   }
 
@@ -264,23 +271,7 @@ export default function BudgetDashboard({ initial, persist }: { initial: SavedDa
           <div><p className="eyebrow">A LITTLE CLARITY. A LOT MORE CONTROL.</p><h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Every Rupee Has a Purpose.</h1><p className="mt-3 text-stone-500">Give your income a plan. Know what’s left before you spend.</p></div>
           {budget && !editing && !readOnly && <button className="secondary" onClick={() => beginPlan(false)}>Edit budget</button>}
         </div>
-        <div className="mb-6">
-          {guideStep === null ? <button className="secondary" onClick={() => showGuide(0)}>How to use Rupee Trace</button> : (
-            <section aria-label="Getting started guide" className="panel border-emerald-200 bg-emerald-50 p-6 sm:p-8">
-              <div className="flex items-center justify-between gap-4">
-                <p className="eyebrow">GETTING STARTED · {guideStep + 1} OF {guideSteps.length}</p>
-                <button className="text-sm underline underline-offset-4" onClick={() => setGuideStep(null)}>Skip guide</button>
-              </div>
-              <h2 ref={guideHeading} tabIndex={-1} className="mt-4 text-xl font-semibold">{guideSteps[guideStep].title}</h2>
-              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-stone-600">{guideSteps[guideStep].text}</p>
-              <div className="mt-5 flex flex-wrap items-center gap-3">
-                {guideStep > 0 && <button className="secondary" onClick={() => showGuide(guideStep - 1)}>Back</button>}
-                {guideStep < guideSteps.length - 1 ? <button className="primary" onClick={() => showGuide(guideStep + 1)}>Next</button> : <button className="primary" onClick={() => { setGuideStep(null); requestAnimationFrame(() => { const field = planForm.current?.elements.namedItem("income"); if (field instanceof HTMLElement) { field.focus(); field.scrollIntoView({ block: "center", behavior: "smooth" }); } }); }}>{current ? "Got it" : "Let’s create my budget"}</button>}
-              </div>
-              <p className="mt-4 text-xs text-stone-500">You can reopen this guide anytime using “How to use Rupee Trace”.</p>
-            </section>
-          )}
-        </div>
+        <div className="mb-6"><button className="secondary" onClick={() => { setSelected(-1); if (current) beginPlan(false); setGuideStep(0); }}>Replay guided tour</button><p className="mt-2 text-xs text-stone-500">The tour uses your real budget. Only save changes and expenses you want to keep.</p></div>
         {current && !editing && <div className="mb-6 flex flex-wrap items-end gap-4"><label className="max-w-sm flex-1">View cycle<select value={selected} onChange={e => { setSelected(Number(e.target.value)); setNotice(""); setError(""); }}><option value={-1}>Current · {current.start}</option>{archives.map((cycle, i) => <option key={cycle.id ?? i} value={i}>Previous · {cycle.start}</option>)}</select></label>{!readOnly && <button className="secondary" onClick={() => beginPlan(true)}>Start new cycle</button>}{readOnly && <p className="text-sm text-stone-500">Archived cycle · read only</p>}</div>}
         {error && <p ref={errorRef} tabIndex={-1} role="alert" className="mb-5 rounded-xl bg-red-50 p-4 text-sm text-red-800">{error}</p>}
         <p role="status" className={notice ? "mb-5 text-sm text-emerald-800" : "sr-only"}>{notice}</p>
@@ -292,12 +283,12 @@ export default function BudgetDashboard({ initial, persist }: { initial: SavedDa
             <div className="mt-7 grid gap-5 sm:grid-cols-2">
               <label>Budget type<select name="cycle" defaultValue={budget?.cycle ?? "Monthly"}><option>Monthly</option><option>Salary cycle</option></select></label>
               <label>Cycle start date<input name="start" {...fieldProps("start")} type="date" required defaultValue={(newCycle ? undefined : budget?.start) ?? new Date().toLocaleDateString("en-CA")} />{fieldMessage("start")}</label>
-              <label className="sm:col-span-2">Income for this cycle (₹)<input name="income" {...fieldProps("income")} type="number" inputMode="decimal" min="0.01" max="1000000000" step="0.01" placeholder="e.g. 80000" required defaultValue={budget ? budget.income / 100 : ""} />{fieldMessage("income")}</label>
+              <div className="sm:col-span-2">{tourNote(0, "Start here ↴", "Enter your income below. Choose your cycle and start date above. When you leave a valid income field, we’ll move to your categories.")}<label>Income for this cycle (₹)<input name="income" onBlur={e => { if (guideStep === 0 && e.currentTarget.validity.valid && Number(e.currentTarget.value) > 0) setGuideStep(1); }} {...fieldProps("income")} type="number" inputMode="decimal" min="0.01" max="1000000000" step="0.01" placeholder="e.g. 80000" required defaultValue={budget ? budget.income / 100 : ""} />{fieldMessage("income")}</label></div>
             </div>
             <div className="my-7 border-t border-stone-200" />
-            <h3 className="font-semibold">Give your money a purpose</h3><div className="mt-5 grid gap-5 sm:grid-cols-2">{categories.map((name, i) => <div key={name}><label>{name} (₹)<input name={`category-${i}`} {...fieldProps(`category-${i}`)} type="number" inputMode="decimal" min="0" max="1000000000" step="0.01" defaultValue={draftAllocations[i] / 100 || ""} placeholder="0" />{fieldMessage(`category-${i}`)}</label><button type="button" className="secondary mt-3" onClick={() => openCategory(name)}>+ Subcategory</button></div>)}</div><button type="button" className="secondary mt-5" onClick={() => openCategory()}>+ Add category</button>
+            {tourNote(1, "Give your money a purpose", "Enter category amounts below. Use + Add category or + Subcategory to make this plan yours. Subcategories divide their parent budget. You can leave money unallocated.", "My allocations are ready")}<h3 className="font-semibold">Give your money a purpose</h3><div className="mt-5 grid gap-5 sm:grid-cols-2">{categories.map((name, i) => <div key={name}><label>{name} (₹)<input name={`category-${i}`} {...fieldProps(`category-${i}`)} type="number" inputMode="decimal" min="0" max="1000000000" step="0.01" defaultValue={draftAllocations[i] / 100 || ""} placeholder="0" />{fieldMessage(`category-${i}`)}</label><button type="button" className="secondary mt-3" onClick={() => openCategory(name)}>+ Subcategory</button></div>)}</div><button type="button" className="secondary mt-5" onClick={() => openCategory()}>+ Add category</button>
             {subcategories.length > 0 && <div className="mt-6"><h3 className="font-semibold">Subcategory allocations</h3><p className="mt-1 text-sm text-stone-500">These divide the parent budget; they do not add to it.</p><div className="mt-4 grid gap-5 sm:grid-cols-2">{subcategories.map(sub => <label key={sub.id}>{sub.parent} / {sub.name} (₹)<input name={`sub-${sub.id}`} {...fieldProps(`sub-${sub.id}`)} type="number" inputMode="decimal" min="0" max="1000000000" step="0.01" defaultValue={sub.allocation / 100} />{fieldMessage(`sub-${sub.id}`)}</label>)}</div></div>}
-            <div className="mt-8 flex gap-3"><button className="primary" type="submit">{newCycle ? "Start cycle & archive current" : budget ? "Save changes" : "Create my budget"} <span aria-hidden="true">↗</span></button>{budget && <button className="secondary" type="button" onClick={() => { setEditing(false); setNewCycle(false); setError(""); }}>Cancel</button>}</div>
+            {tourNote(2, "Save your plan here", "Select the button below to save your budget. If something needs fixing, we’ll point you to that field.")}<div className="mt-8 flex gap-3"><button className="primary" type="submit">{newCycle ? "Start cycle & archive current" : budget ? "Save changes" : "Create my budget"} <span aria-hidden="true">↗</span></button>{budget && <button className="secondary" type="button" onClick={() => { setEditing(false); setNewCycle(false); setError(""); setGuideStep(null); }}>Cancel</button>}</div>
           </form>
         ) : (
           <>
@@ -307,12 +298,12 @@ export default function BudgetDashboard({ initial, persist }: { initial: SavedDa
               <div className="panel p-7"><p className="text-sm text-stone-500">Still to allocate</p><p className="mt-3 text-3xl font-semibold">{money(budget.income - allocated)}</p><p className="mt-5 text-xs text-stone-500">{budget.income === allocated ? "Every rupee has a home. Nicely planned." : "A little space for your next priority."}</p></div>
             </section>
             <section className="mt-10">
-              <div className="mb-5 flex flex-wrap items-center justify-between gap-4"><div><h2 className="text-xl font-semibold">Your purposes</h2><p className="mt-1 text-sm text-stone-500">What’s left in each part of your life.</p></div>{!readOnly && <div className="flex flex-wrap gap-2"><button className="secondary" onClick={() => openCategory()}>+ Add category</button><button className="primary" onClick={() => openExpense()}>+ Add Expense</button></div>}</div>
+              {tourNote(3, "Record your first spend", "Click + Add Expense below to record a real purchase. You can skip the tour if you have nothing to record yet.")}<div className="mb-5 flex flex-wrap items-center justify-between gap-4"><div><h2 className="text-xl font-semibold">Your purposes</h2><p className="mt-1 text-sm text-stone-500">What’s left in each part of your life.</p></div>{!readOnly && <div className="flex flex-wrap gap-2"><button className="secondary" onClick={() => openCategory()}>+ Add category</button><button className="primary" onClick={() => openExpense()}>+ Add Expense</button></div>}</div>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{categories.map((name, i) => {
                 const used = budget.expenses.filter(e => e.category === name).reduce((sum, e) => sum + e.amount, 0);
                 const allocation = budget.allocations[i];
                 const remaining = allocation - used;
-                return <article className="panel p-6" key={name}><div className="flex items-center gap-3"><span aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-xl bg-stone-100 text-xl text-emerald-900">{SYMBOLS[i] ?? "◇"}</span><h3 className="font-medium">{name}</h3></div><p className={`mt-5 text-3xl font-semibold tracking-tight ${remaining < 0 ? "text-red-700" : "text-emerald-950"}`}>{money(remaining)}</p><p className={`mt-1 text-xs ${remaining < 0 ? "text-red-700" : "text-stone-500"}`}>{remaining < 0 ? "Over budget · consider adjusting your plan" : "remaining"}</p><div className="my-5 h-1.5 overflow-hidden rounded-full bg-stone-100"><div className={`h-full rounded-full ${remaining < 0 ? "bg-red-500" : "bg-emerald-600"}`} style={{ width: `${allocation ? Math.min(100, used / allocation * 100) : used ? 100 : 0}%` }} /></div><div className="flex justify-between gap-2 text-xs text-stone-500"><span>{money(used)} spent</span><span>{money(allocation)} allocated</span></div>{subcategories.some(sub => sub.parent === name) && <ul className="mt-5 divide-y divide-stone-100 border-t border-stone-100">{subcategories.filter(sub => sub.parent === name).map(sub => {
+                return <article className="panel p-6" key={name}>{tourCategory === name && tourNote(5, "Here’s what’s left!", "Your expense has reduced this category’s balance. Keep adding purchases as they happen. Edit or delete an expense if you need to correct it.", "Finish tour")}<div className="flex items-center gap-3"><span aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-xl bg-stone-100 text-xl text-emerald-900">{SYMBOLS[i] ?? "◇"}</span><h3 className="font-medium">{name}</h3></div><p className={`mt-5 text-3xl font-semibold tracking-tight ${remaining < 0 ? "text-red-700" : "text-emerald-950"}`}>{money(remaining)}</p><p className={`mt-1 text-xs ${remaining < 0 ? "text-red-700" : "text-stone-500"}`}>{remaining < 0 ? "Over budget · consider adjusting your plan" : "remaining"}</p><div className="my-5 h-1.5 overflow-hidden rounded-full bg-stone-100"><div className={`h-full rounded-full ${remaining < 0 ? "bg-red-500" : "bg-emerald-600"}`} style={{ width: `${allocation ? Math.min(100, used / allocation * 100) : used ? 100 : 0}%` }} /></div><div className="flex justify-between gap-2 text-xs text-stone-500"><span>{money(used)} spent</span><span>{money(allocation)} allocated</span></div>{subcategories.some(sub => sub.parent === name) && <ul className="mt-5 divide-y divide-stone-100 border-t border-stone-100">{subcategories.filter(sub => sub.parent === name).map(sub => {
                   const subSpent = budget.expenses.filter(e => e.subcategory === sub.id).reduce((sum, e) => sum + e.amount, 0);
                   return <li className="py-3 text-sm" key={sub.id}><div className="flex justify-between gap-2"><span className="break-words">{sub.name}</span><span className={subSpent > sub.allocation ? "text-red-700" : "text-emerald-800"}>{money(Math.abs(sub.allocation - subSpent))} {subSpent > sub.allocation ? "overspent" : "left"}</span></div><p className="mt-1 text-xs text-stone-500">{money(subSpent)} spent · {money(sub.allocation)} allocated</p></li>;
                 })}<li className="pt-3 text-xs text-stone-500">{money(allocation - subcategories.filter(sub => sub.parent === name).reduce((sum, sub) => sum + sub.allocation, 0))} not assigned to subcategories. Parent balance includes all expenses.</li></ul>}{!readOnly && <button className="secondary mt-4" onClick={() => openCategory(name)}>+ Subcategory</button>}</article>;
@@ -342,9 +333,9 @@ export default function BudgetDashboard({ initial, persist }: { initial: SavedDa
         <p className="mt-3 text-sm text-stone-500">{categoryParent ? "This allocation comes from the parent budget. It is not additional income." : "Give another part of your life a purpose and a budget."}</p>
         <form noValidate onSubmit={createCategory} className="mt-5 space-y-5"><label>Name<input name="name" {...fieldProps("name")} maxLength={40} required autoFocus />{fieldMessage("name")}</label><label>Allocation (₹)<input name="allocation" {...fieldProps("allocation")} type="number" inputMode="decimal" min="0" max="1000000000" step="0.01" defaultValue="0" required />{fieldMessage("allocation")}</label>{categoryError && <p role="alert" className="text-sm text-red-700">{categoryError}</p>}<button className="primary w-full" type="submit">{categoryParent ? "Create subcategory" : "Create category"}</button></form>
       </dialog>
-      <dialog ref={dialog} className="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl bg-white p-7 text-stone-900 shadow-xl backdrop:bg-stone-950/40" aria-labelledby="expense-title">
+      <dialog ref={dialog} className="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl bg-white p-7 text-stone-900 shadow-xl backdrop:bg-stone-950/40" aria-labelledby="expense-title" onClose={() => { if (guideStep === 4) setGuideStep(3); }}>
         <div className="flex items-center justify-between"><h2 id="expense-title" className="text-2xl font-semibold">{editingExpense ? "Edit expense" : "Add Expense"}</h2><button type="button" className="secondary" aria-label="Close expense form" onClick={() => dialog.current?.close()}>×</button></div><p className="mt-2 text-sm text-stone-500">A small entry. A clearer picture.</p>
-        <form noValidate onSubmit={addExpense} className="mt-6 space-y-5"><label>Amount (₹)<input name="amount" {...fieldProps("amount")} type="number" inputMode="decimal" min="0.01" max="1000000000" step="0.01" placeholder="0.00" value={expenseAmount} onChange={e => setExpenseAmount(e.target.value)} required autoFocus />{fieldMessage("amount")}</label><label>Category<select name="category" {...fieldProps("category")} required value={expenseCategory} onChange={e => { setExpenseCategory(e.target.value); setExpenseSubcategory(""); }}><option value="" disabled>Choose a purpose</option>{categories.map(name => <option key={name}>{name}</option>)}</select>{fieldMessage("category")}</label>{subcategories.some(sub => sub.parent === expenseCategory) && <label>Subcategory (optional)<select name="subcategory" {...fieldProps("subcategory")} value={expenseSubcategory} onChange={e => setExpenseSubcategory(e.target.value)}><option value="">General / no subcategory</option>{subcategories.filter(sub => sub.parent === expenseCategory).map(sub => <option key={sub.id} value={sub.id}>{sub.name}</option>)}</select>{fieldMessage("subcategory")}</label>}<p className="text-xs text-stone-500">Expenses beyond your allocation are allowed and shown as over budget.</p>{expenseError && <p role="alert" className="text-sm text-red-700">{expenseError}</p>}<button type="submit" className="primary w-full">Save expense</button></form>
+        {tourNote(4, "Add the amount and category", "Enter what you spent, choose its category, then tap Save expense. This creates a real expense in your account.")}<form noValidate onSubmit={addExpense} className="mt-6 space-y-5"><label>Amount (₹)<input name="amount" {...fieldProps("amount")} type="number" inputMode="decimal" min="0.01" max="1000000000" step="0.01" placeholder="0.00" value={expenseAmount} onChange={e => setExpenseAmount(e.target.value)} required autoFocus />{fieldMessage("amount")}</label><label>Category<select name="category" {...fieldProps("category")} required value={expenseCategory} onChange={e => { setExpenseCategory(e.target.value); setExpenseSubcategory(""); }}><option value="" disabled>Choose a purpose</option>{categories.map(name => <option key={name}>{name}</option>)}</select>{fieldMessage("category")}</label>{subcategories.some(sub => sub.parent === expenseCategory) && <label>Subcategory (optional)<select name="subcategory" {...fieldProps("subcategory")} value={expenseSubcategory} onChange={e => setExpenseSubcategory(e.target.value)}><option value="">General / no subcategory</option>{subcategories.filter(sub => sub.parent === expenseCategory).map(sub => <option key={sub.id} value={sub.id}>{sub.name}</option>)}</select>{fieldMessage("subcategory")}</label>}<p className="text-xs text-stone-500">Expenses beyond your allocation are allowed and shown as over budget.</p>{expenseError && <p role="alert" className="text-sm text-red-700">{expenseError}</p>}<button type="submit" className="primary w-full">Save expense</button></form>
       </dialog>
     </fieldset>
   );
