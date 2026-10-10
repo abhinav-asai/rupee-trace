@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import BudgetDashboard, { type SavedData, validCycle } from "./budget-dashboard";
@@ -60,6 +61,8 @@ function AuthForm({ recovery = false, onRecovered }: { recovery?: boolean; onRec
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  function switchMode(next: "login" | "signup" | "reset") { setMode(next); setError(""); setMessage(""); setShowPassword(false); }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
@@ -90,16 +93,36 @@ function AuthForm({ recovery = false, onRecovered }: { recovery?: boolean; onRec
       setError(cause instanceof Error ? cause.message : "Unable to complete this request. Please try again.");
     } finally { setBusy(false); }
   }
-  const title = recovery ? "Choose a new password" : mode === "signup" ? "Create your account" : mode === "reset" ? "Reset your password" : "Welcome to Rupee Trace";
-  return <main className="mx-auto max-w-md px-5 py-16"><p className="eyebrow">EVERY RUPEE HAS A PURPOSE.</p><h1 className="mt-4 text-3xl font-semibold">{title}</h1><p className="mt-3 text-sm text-stone-500">Your budgets, expenses, and history—in your account.</p>
-    <form onSubmit={submit} className="panel mt-7 p-6"><fieldset disabled={busy} className="space-y-5">
-      {!recovery && <label>Email<input name="email" type="email" autoComplete="email" required /></label>}
-      {(recovery || mode !== "reset") && <label>{recovery ? "New password" : "Password"}<input name="password" type="password" minLength={mode === "login" && !recovery ? 1 : 8} autoComplete={mode === "login" && !recovery ? "current-password" : "new-password"} required />{(recovery || mode === "signup") && <span className="mt-2 block text-xs text-stone-500">At least 8 characters.</span>}</label>}
-      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}{message && <p role="status" className="text-sm text-emerald-800">{message}</p>}
-      <button className="primary w-full" type="submit">{busy ? "Please wait…" : recovery ? "Save new password" : mode === "login" ? "Log in" : mode === "signup" ? "Create account" : "Send reset link"}</button>
-    </fieldset></form>
-    {!recovery && <div className="mt-5 flex flex-wrap gap-3">{mode !== "login" && <button className="secondary" onClick={() => { setMode("login"); setError(""); setMessage(""); }}>Back to login</button>}{mode === "login" && <><button className="secondary" onClick={() => { setMode("signup"); setError(""); }}>Create account</button><button className="secondary" onClick={() => { setMode("reset"); setError(""); }}>Forgot password?</button></>}</div>}
+  const title = recovery ? "Choose a new password" : mode === "signup" ? "A fresh start for your money." : mode === "reset" ? "Let’s get you back in." : "Welcome back";
+  return <main className="min-h-screen bg-[#fcfaf4] px-5 py-7 sm:px-10 sm:py-10">
+    <div className="mx-auto max-w-6xl">
+      <Link href="/" className="inline-flex items-center gap-3 text-2xl font-semibold tracking-tight text-emerald-950"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-950 text-white">₹</span><span className="font-serif">Rupee Trace</span></Link>
+      <div className="mt-9 grid items-center gap-8 lg:mt-16 lg:grid-cols-[1.15fr_1fr] lg:gap-16">
+        <section>
+          <p className="eyebrow">EVERY RUPEE HAS A PURPOSE</p>
+          <h1 className="mt-4 font-serif text-4xl leading-[1.08] tracking-tight text-emerald-950 sm:text-5xl lg:text-6xl">A little clarity.<br />A lot more control.</h1>
+          <div className="hidden lg:block"><BudgetIllustration /></div>
+        </section>
+        <section aria-label="Your account" className="w-full max-w-lg lg:justify-self-end">
+          <div className="rounded-3xl border border-[#d6dbcf] bg-white p-6 shadow-[0_12px_45px_-30px_rgba(20,60,40,0.25)] sm:p-10">
+            <h2 className="font-serif text-3xl leading-tight text-emerald-950 sm:text-4xl">{title}</h2>
+            <p className="mt-3 text-sm leading-relaxed text-stone-500">{recovery ? "Choose a password to continue to your account." : mode === "signup" ? "Create an account and give every rupee a purpose." : mode === "reset" ? "We’ll email you a link to reset your password." : "Your money, with intention."}</p>
+            <form onSubmit={submit} className="mt-7"><fieldset disabled={busy} className="space-y-5 disabled:opacity-60">
+              {!recovery && <label htmlFor="auth-email">Email<input id="auth-email" name="email" type="email" autoComplete="email" placeholder="you@example.com" required /></label>}
+              {(recovery || mode !== "reset") && <div><label htmlFor="auth-password">{recovery ? "New password" : "Password"}</label><div className="relative"><input id="auth-password" className="pr-20" name="password" type={showPassword ? "text" : "password"} minLength={mode === "login" && !recovery ? 1 : 8} autoComplete={mode === "login" && !recovery ? "current-password" : "new-password"} required /><button type="button" className="absolute inset-y-0 right-0 px-4 text-sm text-emerald-900" aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} onClick={() => setShowPassword(value => !value)}>{showPassword ? "Hide" : "Show"}</button></div>{(recovery || mode === "signup") && <p className="mt-2 text-xs text-stone-500">At least 8 characters.</p>}</div>}
+              {!recovery && mode === "login" && <div className="text-right"><button type="button" className="text-sm text-emerald-800 underline underline-offset-4" onClick={() => switchMode("reset")}>Forgot password?</button></div>}
+              {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}{message && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{message}</p>}
+              <button className="primary w-full" type="submit">{busy ? "Please wait…" : recovery ? "Save new password" : mode === "login" ? "Log in" : mode === "signup" ? "Create account" : "Send reset link"}</button>
+              {!recovery && <p className="pt-2 text-center text-sm text-stone-600">{mode === "login" ? <>New here? <button type="button" className="font-medium text-emerald-800 underline underline-offset-4" onClick={() => switchMode("signup")}>Create an account</button></> : <>{mode === "signup" ? "Already have an account? " : "Remember your password? "}<button type="button" className="font-medium text-emerald-800 underline underline-offset-4" onClick={() => switchMode("login")}>Log in</button></>}</p>}
+            </fieldset></form>
+          </div>
+          <p className="mt-5 text-center text-xs leading-relaxed text-stone-500">Your budgets and expenses, saved to your account.</p>
+        </section>
+      </div>
+      <div className="mx-auto mt-8 max-w-md lg:hidden"><BudgetIllustration /></div>
+    </div>
   </main>;
+
 }
 
 function AccountBudget({ user }: { user: User }) {
@@ -156,4 +179,26 @@ function AccountBudget({ user }: { user: User }) {
     {error && <p role="alert" className="mx-auto max-w-6xl p-5 text-red-700">{error}</p>}
     <BudgetDashboard initial={initial} persist={persist} />
   </>;
+}
+
+// A lightweight, scalable illustration; the figures are examples, not account data.
+function BudgetIllustration() {
+  return <figure className="relative mx-auto mt-6 max-w-xl py-6" aria-label="Example budget: 5,000 rupees allocated, 600 spent, 4,400 remaining">
+    <svg aria-hidden="true" viewBox="0 0 540 350" className="w-full" fill="none">
+      <g stroke="#7c806a" strokeWidth="1.8" strokeLinejoin="round">
+        <path d="M45 93L187 70L213 285L65 307Z" fill="#f1f0e2"/><path d="M355 72L495 105L464 307L334 281Z" fill="#f1f0e2"/>
+        <path d="M154 42Q265 34 368 45L376 306Q265 314 159 307Z" fill="#fffdf5"/>
+        <path d="M158 45L365 42L372 302L161 305Z" strokeOpacity=".3"/>
+        <path d="M77 146L104 123L131 146M85 143V175H123V143M99 175V155H110V175"/>
+        <path d="M404 145L442 121L449 128L423 151L438 166L432 173L411 161L397 169L391 163L404 145Z"/>
+        <path d="M84 206L134 199M88 229L137 222M392 212L446 223M389 237L441 248" strokeWidth="5" strokeLinecap="round" strokeOpacity=".35"/>
+      </g>
+      <g fill="#173e2d" textAnchor="middle" fontFamily="Georgia, serif"><text x="265" y="90" fontSize="23">Dining budget</text><text x="265" y="141" fontSize="23">₹5,000 allocated</text><text x="265" y="208" fontSize="21">₹600 spent</text><text x="265" y="277" fontSize="24" fontWeight="bold">₹4,400 remaining</text></g>
+      <path d="M191 164H338" stroke="#dce3ca" strokeWidth="9" strokeLinecap="round"/><path d="M191 164H254" stroke="#75916b" strokeWidth="9" strokeLinecap="round"/>
+      <path d="M191 231H338" stroke="#e4dfcd" strokeWidth="7" strokeLinecap="round"/><path d="M191 231H211" stroke="#75916b" strokeWidth="7" strokeLinecap="round"/>
+      <g stroke="#bd880f" strokeWidth="2.5" strokeLinecap="round"><path d="M27 92C40 34 93 23 130 53M111 52L132 56L125 35"/><path d="M481 274C529 255 529 214 495 191M500 211L492 189L515 192"/><path d="M388 43L399 23M405 55L425 40"/></g>
+      <g stroke="#45634c" strokeWidth="2" fill="#dce5d2"><path d="M48 312Q27 276 20 236Q53 253 48 286Q16 282 10 266Q46 270 48 312Z"/><path d="M475 320Q494 298 508 281Q510 308 487 311"/></g>
+    </svg>
+    <figcaption className="text-center font-serif text-sm italic text-stone-500">A small plan. A clearer picture. · Example budget</figcaption>
+  </figure>;
 }
