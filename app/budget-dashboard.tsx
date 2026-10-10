@@ -290,7 +290,19 @@ export default function BudgetDashboard({ initial, persist }: { initial: SavedDa
                 })}<li className="pt-3 text-xs text-stone-500">{money(allocation - subcategories.filter(sub => sub.parent === name).reduce((sum, sub) => sum + sub.allocation, 0))} not assigned to subcategories. Parent balance includes all expenses.</li></ul>}{!readOnly && <button className="secondary mt-4" onClick={() => openCategory(name)}>+ Subcategory</button>}</article>;
               })}</div>
             </section>
-            <section className="panel mt-8 p-6"><div className="flex justify-between gap-3"><h2 className="text-lg font-semibold">Expenses</h2><p className="text-sm text-stone-500">{money(spent)} spent this cycle</p></div>{budget.expenses.length === 0 ? <div className="py-9 text-center"><p className="font-medium">A fresh start for your money.</p><p className="mt-2 text-sm text-stone-500">Add your first expense to see your plan in action.</p></div> : <ul className="mt-4 divide-y divide-stone-100">{budget.expenses.map(e => <li key={e.id} className="flex items-center justify-between gap-4 py-4"><div><p className="text-sm font-medium">{expenseLabel(e)}</p><p className="mt-1 text-xs text-stone-500">{new Date(e.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</p></div><div className="flex flex-wrap items-center justify-end gap-2"><span className="font-medium">−{money(e.amount)}</span>{!readOnly && <><button className="secondary" onClick={() => openExpense(e)}>Edit</button><button className="secondary" onClick={() => deleteExpense(e)}>Delete</button></>}</div></li>)}</ul>}</section>
+            <section className="panel mt-8 p-6"><div className="flex justify-between gap-3"><h2 className="text-lg font-semibold">Expenses</h2><p className="text-sm text-stone-500">{money(spent)} spent this cycle</p></div>{budget.expenses.length === 0 ? <div className="py-9 text-center"><p className="font-medium">A fresh start for your money.</p><p className="mt-2 text-sm text-stone-500">Add your first expense to see your plan in action.</p></div> : <ul className="mt-4 divide-y divide-stone-100">{budget.expenses.map(e => (
+              <li key={e.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-medium">{expenseLabel(e)}</p>
+                  <p className="mt-1 text-xs text-stone-500">{new Date(e.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</p>
+                </div>
+                <span className="whitespace-nowrap text-right font-medium tabular-nums">−{money(e.amount)}</span>
+                {!readOnly && <div className="col-span-2 flex justify-end gap-2 sm:col-span-1">
+                  <button className="secondary" onClick={() => openExpense(e)}>Edit</button>
+                  <button className="secondary" onClick={() => deleteExpense(e)}>Delete</button>
+                </div>}
+              </li>
+            ))}</ul>}</section>
             {(budget.deletedExpenses ?? []).length > 0 && <details className="panel mt-6 p-6"><summary className="cursor-pointer font-semibold">Deleted expenses ({budget.deletedExpenses!.length})</summary><ul className="mt-4 divide-y divide-stone-100">{budget.deletedExpenses!.map(e => <li key={e.id} className="flex items-center justify-between gap-4 py-3"><span className="text-sm">{expenseLabel(e)} · {money(e.amount)}</span>{!readOnly && <button className="secondary" onClick={() => restoreExpense(e)}>Restore</button>}</li>)}</ul></details>}
             <section className="panel mt-6 p-6"><h2 className="text-lg font-semibold">Activity history</h2><p className="mt-1 text-sm text-stone-500">Budget decisions and expense changes, newest first.</p><ol className="mt-4 max-h-96 overflow-y-auto divide-y divide-stone-100">{(budget.activities ?? []).map(a => <li key={a.id} className="py-4"><p className="text-sm">{a.description}</p><p className="mt-1 text-xs text-stone-500">{new Date(a.date).toLocaleString("en-IN")}</p></li>)}</ol></section>
           </>
