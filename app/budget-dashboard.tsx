@@ -32,6 +32,17 @@ export default function BudgetDashboard({ initial, persist }: { initial: SavedDa
   const [current, setCurrent] = useState<Budget | null>(initial?.current ?? null);
   const [archives, setArchives] = useState<Budget[]>(initial?.archives ?? []);
   const [selected, setSelected] = useState(-1);
+  const [guideStep, setGuideStep] = useState<number | null>(initial ? null : 0);
+  const guideHeading = useRef<HTMLHeadingElement>(null);
+  function showGuide(step: number) {
+    setGuideStep(step);
+    requestAnimationFrame(() => { guideHeading.current?.focus(); guideHeading.current?.scrollIntoView({ block: "center", behavior: "smooth" }); });
+  }
+  const guideSteps = [
+    { title: "Start with your income", text: "Choose Monthly or Salary cycle, set its start date, and enter the money available for this cycle. For example, a ₹50,000 salary gives you ₹50,000 to plan with." },
+    { title: "Give every rupee a purpose", text: "Allocate money to categories such as groceries, travel, or savings. Add your own categories and subcategories before saving. A ₹2,000 Petrol subcategory comes from your Travel budget; it is not extra money. You can leave some income unallocated." },
+    { title: "Track spending as it happens", text: "Save your budget, then select Add Expense, enter an amount, and choose its category. Spending ₹600 from a ₹5,000 Dining budget leaves ₹4,400. Overspending is clearly marked, and you can edit or delete an expense to correct it." },
+  ];
   const [newCycle, setNewCycle] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [expenseAmount, setExpenseAmount] = useState("");
@@ -252,6 +263,23 @@ export default function BudgetDashboard({ initial, persist }: { initial: SavedDa
         <div className="mb-8 flex flex-wrap items-end justify-between gap-5">
           <div><p className="eyebrow">A LITTLE CLARITY. A LOT MORE CONTROL.</p><h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Every Rupee Has a Purpose.</h1><p className="mt-3 text-stone-500">Give your income a plan. Know what’s left before you spend.</p></div>
           {budget && !editing && !readOnly && <button className="secondary" onClick={() => beginPlan(false)}>Edit budget</button>}
+        </div>
+        <div className="mb-6">
+          {guideStep === null ? <button className="secondary" onClick={() => showGuide(0)}>How to use Rupee Trace</button> : (
+            <section aria-label="Getting started guide" className="panel border-emerald-200 bg-emerald-50 p-6 sm:p-8">
+              <div className="flex items-center justify-between gap-4">
+                <p className="eyebrow">GETTING STARTED · {guideStep + 1} OF {guideSteps.length}</p>
+                <button className="text-sm underline underline-offset-4" onClick={() => setGuideStep(null)}>Skip guide</button>
+              </div>
+              <h2 ref={guideHeading} tabIndex={-1} className="mt-4 text-xl font-semibold">{guideSteps[guideStep].title}</h2>
+              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-stone-600">{guideSteps[guideStep].text}</p>
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                {guideStep > 0 && <button className="secondary" onClick={() => showGuide(guideStep - 1)}>Back</button>}
+                {guideStep < guideSteps.length - 1 ? <button className="primary" onClick={() => showGuide(guideStep + 1)}>Next</button> : <button className="primary" onClick={() => { setGuideStep(null); requestAnimationFrame(() => { const field = planForm.current?.elements.namedItem("income"); if (field instanceof HTMLElement) { field.focus(); field.scrollIntoView({ block: "center", behavior: "smooth" }); } }); }}>{current ? "Got it" : "Let’s create my budget"}</button>}
+              </div>
+              <p className="mt-4 text-xs text-stone-500">You can reopen this guide anytime using “How to use Rupee Trace”.</p>
+            </section>
+          )}
         </div>
         {current && !editing && <div className="mb-6 flex flex-wrap items-end gap-4"><label className="max-w-sm flex-1">View cycle<select value={selected} onChange={e => { setSelected(Number(e.target.value)); setNotice(""); setError(""); }}><option value={-1}>Current · {current.start}</option>{archives.map((cycle, i) => <option key={cycle.id ?? i} value={i}>Previous · {cycle.start}</option>)}</select></label>{!readOnly && <button className="secondary" onClick={() => beginPlan(true)}>Start new cycle</button>}{readOnly && <p className="text-sm text-stone-500">Archived cycle · read only</p>}</div>}
         {error && <p ref={errorRef} tabIndex={-1} role="alert" className="mb-5 rounded-xl bg-red-50 p-4 text-sm text-red-800">{error}</p>}
